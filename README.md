@@ -1,1 +1,1 @@
-# ResoNote
+# ResoNote API
