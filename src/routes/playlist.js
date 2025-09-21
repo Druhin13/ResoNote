@@ -17,6 +17,34 @@ router.post('/generate', playlistController.generatePlaylist);
 router.get('/tracks/:trackId', playlistController.getSimilarTracks);
 
 /**
+ * @route   GET /api/playlists/tracks/:trackId/details
+ * @desc    Get detailed information about a track
+ * @access  Public
+ */
+router.get('/tracks/:trackId/details', playlistController.getTrackDetails);
+
+/**
+ * @route   GET /api/playlists/similarity
+ * @desc    Get similarity details between two tracks
+ * @access  Public
+ */
+router.get('/similarity', playlistController.getSimilarityDetails);
+
+/**
+ * @route   GET /api/playlists/search
+ * @desc    Search for tracks by name, artist, or lyrics
+ * @access  Public
+ */
+router.get('/search', playlistController.searchTracks);
+
+/**
+ * @route   GET /api/playlists/random-track
+ * @desc    Get a random track from the database
+ * @access  Public
+ */
+router.get('/random-track', playlistController.getRandomTrack);
+
+/**
  * @route   GET /api/playlists/facets
  * @desc    Get all available facets
  * @access  Public

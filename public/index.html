@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ResoNote Playlist Generator</title>
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="icon" href="favicon.ico" type="image/x-icon" />
+    <!-- Google Fonts - Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- Header -->
+      <header class="app-header">
+        <div class="header-content">
+          <div class="logo">
+            <i class="logo-icon"></i>
+            <h1>ResoNote</h1>
+          </div>
+          <p class="tagline">AI-Powered Playlist Generator</p>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <div class="app-main">
+        <!-- Left Panel - Input Controls -->
+        <div class="left-panel">
+          <div class="panel-scroll">
+            <div class="section">
+              <div class="section-header">
+                <h2>
+                  <i data-lucide="settings"></i>
+                  Configuration
+                </h2>
+              </div>
+              <div class="section-content">
+                <!-- Seed Tracks -->
+                <div class="form-group">
+                  <label class="form-label">Seed Tracks</label>
+                  <div class="seed-tracks-container">
+                    <div class="search-input-container">
+                      <i data-lucide="search" class="search-icon"></i>
+                      <input
+                        type="text"
+                        id="track-search"
+                        placeholder="Search for tracks by name, artist, or lyrics..."
+                        class="search-input"
+                      />
+                      <div id="search-results" class="search-results hidden">
+                        <!-- Search results will be added here dynamically -->
+                      </div>
+                    </div>
+                    <button id="random-track" class="btn btn-outline">
+                      <i data-lucide="shuffle"></i>
+                      Random
+                    </button>
+                  </div>
+                  <div id="selected-tracks" class="selected-tracks">
+                    <div class="empty-selection">
+                      <i data-lucide="music" class="empty-icon"></i>
+                      <p>No tracks selected yet</p>
+                      <span class="empty-subtext"
+                        >Search for a track above or select a random track</span
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Similarity Type -->
+                <div class="form-group">
+                  <label class="form-label">Similarity Type</label>
+                  <div class="radio-grid">
+                    <label class="radio-card">
+                      <input
+                        type="radio"
+                        name="similarity-type"
+                        value="combined"
+                        checked
+                      />
+                      <div class="radio-card-content">
+                        <i data-lucide="layers"></i>
+                        <span>Combined</span>
+                      </div>
+                    </label>
+                    <label class="radio-card">
+                      <input
+                        type="radio"
+                        name="similarity-type"
+                        value="semantic"
+                      />
+                      <div class="radio-card-content">
+                        <i data-lucide="tag"></i>
+                        <span>Semantic</span>
+                      </div>
+                    </label>
+                    <label class="radio-card">
+                      <input
+                        type="radio"
+                        name="similarity-type"
+                        value="audio"
+                      />
+                      <div class="radio-card-content">
+                        <i data-lucide="waves"></i>
+                        <span>Audio</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Weights -->
+                <div id="weights-container" class="form-group">
+                  <label class="form-label">Similarity Weights</label>
+                  <div class="weight-controls">
+                    <div class="weight-item">
+                      <div class="weight-header">
+                        <span>Semantic</span>
+                        <span id="semantic-weight-value" class="weight-value"
+                          >50%</span
+                        >
+                      </div>
+                      <div class="slider-wrapper">
+                        <input
+                          type="range"
+                          id="semantic-weight"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value="0.5"
+                          class="slider"
+                        />
+                      </div>
+                    </div>
+                    <div class="weight-item">
+                      <div class="weight-header">
+                        <span>Audio</span>
+                        <span id="audio-weight-value" class="weight-value"
+                          >50%</span
+                        >
+                      </div>
+                      <div class="slider-wrapper">
+                        <input
+                          type="range"
+                          id="audio-weight"
+                          min="0"
+                          max="1"
+                          step="0.01"
+                          value="0.5"
+                          class="slider"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Playlist Size -->
+                <div class="form-group">
+                  <label class="form-label">Playlist Size</label>
+                  <div class="number-inputs">
+                    <div class="number-input-group">
+                      <label class="number-label">Min Tracks</label>
+                      <input
+                        type="number"
+                        id="min-tracks"
+                        min="1"
+                        max="50"
+                        value="5"
+                        class="number-input"
+                      />
+                    </div>
+                    <div class="number-input-group">
+                      <label class="number-label">Max Tracks</label>
+                      <input
+                        type="number"
+                        id="max-tracks"
+                        min="1"
+                        max="50"
+                        value="10"
+                        class="number-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Diversity Factor -->
+                <div class="form-group">
+                  <div class="slider-label">
+                    <div class="label-with-tooltip">
+                      <span>Diversity Factor</span>
+                      <button
+                        id="diversity-tooltip"
+                        class="tooltip-trigger"
+                        data-tooltip="Higher values increase playlist diversity"
+                      >
+                        <i data-lucide="help-circle"></i>
+                      </button>
+                    </div>
+                    <span id="diversity-factor-value" class="weight-value"
+                      >30%</span
+                    >
+                  </div>
+                  <div class="slider-wrapper">
+                    <input
+                      type="range"
+                      id="diversity-factor"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value="0.3"
+                      class="slider"
+                    />
+                  </div>
+                  <div class="slider-labels">
+                    <span>Similar</span>
+                    <span>Diverse</span>
+                  </div>
+                </div>
+
+                <!-- Options -->
+                <div class="form-group">
+                  <label class="form-label">Options</label>
+                  <div class="checkbox-list">
+                    <label class="checkbox-item">
+                      <div class="checkbox-wrapper">
+                        <input
+                          type="checkbox"
+                          id="include-seed-tracks"
+                          checked
+                        />
+                        <div class="checkbox-indicator">
+                          <i data-lucide="check"></i>
+                        </div>
+                      </div>
+                      <div class="checkbox-content">
+                        <span class="checkbox-label">Include Seed Tracks</span>
+                        <span class="checkbox-description"
+                          >Add seed tracks to the generated playlist</span
+                        >
+                      </div>
+                    </label>
+                    <label class="checkbox-item">
+                      <div class="checkbox-wrapper">
+                        <input
+                          type="checkbox"
+                          id="allow-track-variations"
+                          checked
+                        />
+                        <div class="checkbox-indicator">
+                          <i data-lucide="check"></i>
+                        </div>
+                      </div>
+                      <div class="checkbox-content">
+                        <span class="checkbox-label"
+                          >Allow Track Variations</span
+                        >
+                        <span class="checkbox-description"
+                          >Include remixes, covers, and alternate versions</span
+                        >
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Generate Button -->
+                <button id="generate-playlist" class="btn btn-primary btn-lg">
+                  <i data-lucide="wand-2"></i>
+                  Generate Playlist
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel - Playlist Results -->
+        <div class="right-panel">
+          <div class="panel-header">
+            <div class="header-left">
+              <h2>
+                <i data-lucide="list-music"></i>
+                Your Playlist
+              </h2>
+            </div>
+            <div class="header-actions">
+              <button id="clear-results" class="btn btn-ghost btn-sm">
+                <i data-lucide="trash-2"></i>
+                Clear
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-content">
+            <!-- Loading State -->
+            <div id="loading" class="loading-state hidden">
+              <div class="loading-spinner">
+                <i data-lucide="loader-2" class="animate-spin"></i>
+              </div>
+              <h3>Generating your playlist</h3>
+              <p>Finding the perfect tracks based on your preferences...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-message" class="error-state hidden">
+              <i data-lucide="alert-circle"></i>
+              <p>Something went wrong</p>
+            </div>
+
+            <!-- Empty State -->
+            <div class="empty-state">
+              <i data-lucide="music-4" class="empty-icon"></i>
+              <h3>Ready to create your playlist?</h3>
+              <p>
+                Configure your preferences on the left and hit generate to get
+                started.
+              </p>
+            </div>
+
+            <!-- Results -->
+            <div id="playlist-results" class="playlist-results hidden">
+              <div class="playlist-info">
+                <div class="playlist-meta">
+                  <h3 id="playlist-name">Generated Playlist</h3>
+                  <div class="playlist-stats">
+                    <span id="track-count">
+                      <i data-lucide="music"></i>
+                      0 tracks
+                    </span>
+                    <span id="avg-similarity">
+                      <i data-lucide="target"></i>
+                      Avg Similarity: 0%
+                    </span>
+                  </div>
+                </div>
+                <div class="playlist-actions">
+                  <button id="export-playlist" class="btn btn-outline btn-sm">
+                    <i data-lucide="download"></i>
+                    Export
+                  </button>
+                </div>
+              </div>
+
+              <div class="track-list-container">
+                <div class="track-list-header">
+                  <div class="track-header-cell track-number">#</div>
+                  <div class="track-header-cell track-title">Title</div>
+                  <div class="track-header-cell track-artist">Artist</div>
+                  <div class="track-header-cell track-similarity">
+                    Similarity
+                  </div>
+                  <div class="track-header-cell track-actions">Actions</div>
+                </div>
+                <div id="track-list" class="track-list">
+                  <!-- Tracks will be added here dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Track Details Modal -->
+    <div id="track-details-modal" class="modal hidden">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modal-track-title">Track Details</h2>
+          <button class="modal-close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div id="modal-loading" class="loading-state">
+            <div class="loading-spinner">
+              <i data-lucide="loader-2" class="animate-spin"></i>
+            </div>
+            <p>Loading track details...</p>
+          </div>
+          <div id="modal-track-details">
+            <!-- Track details will be added here dynamically -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
+    <script>
+      // Initialize Lucide icons
+      lucide.createIcons();
+    </script>
+    <script src="js/api.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

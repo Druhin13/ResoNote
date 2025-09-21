@@ -1,13 +1,8 @@
 const asyncHandler = require('express-async-handler');
-const { getFacets, getTags, getTrackById } = require('../data/dataLoader');
+const { getFacets, getTags, getTrackById, getRandomTrack, searchTracks } = require('../data/dataLoader');
 const similarityService = require('../services/similarityService');
 const playlistService = require('../services/playlistService');
 
-/**
- * @desc    Generate a playlist based on seed tracks
- * @route   POST /api/playlists/generate
- * @access  Public
- */
 const generatePlaylist = asyncHandler(async (req, res) => {
   const {
     trackIds,
@@ -17,47 +12,49 @@ const generatePlaylist = asyncHandler(async (req, res) => {
     semanticWeight = 0.5,
     audioWeight = 0.5,
     diversityFactor = 0.3,
-    includeSeedTracks = true
+    includeSeedTracks = true,
+    allowTrackVariations = true
   } = req.body;
-  
-  // Validate request
+
   if (!trackIds || !Array.isArray(trackIds) || trackIds.length === 0) {
-    res.status(400);
-    throw new Error('Please provide at least one track ID');
+    return res.status(400).json({ success: false, message: 'Please provide at least one track ID.' });
   }
-  
   if (minTracks < 1 || maxTracks < minTracks || maxTracks > 100) {
-    res.status(400);
-    throw new Error('Invalid track count limits: minTracks must be at least 1, maxTracks must be between minTracks and 100');
+    return res.status(400).json({ success: false, message: 'Invalid track count limits: minTracks must be at least 1, maxTracks must be between minTracks and 100.' });
   }
-  
   if (!['semantic', 'audio', 'combined'].includes(similarityType)) {
-    res.status(400);
-    throw new Error('Invalid similarityType: must be "semantic", "audio", or "combined"');
+    return res.status(400).json({ success: false, message: 'Invalid similarityType: must be "semantic", "audio", or "combined".' });
   }
-  
-  // Generate playlist
-  const playlist = playlistService.generatePlaylist(trackIds, {
-    minTracks: parseInt(minTracks),
-    maxTracks: parseInt(maxTracks),
-    similarityType,
-    semanticWeight: parseFloat(semanticWeight),
-    audioWeight: parseFloat(audioWeight),
-    diversityFactor: parseFloat(diversityFactor),
-    includeSeedTracks: !!includeSeedTracks
-  });
-  
+
+  let playlist;
+  try {
+    playlist = playlistService.generatePlaylist(trackIds, {
+      minTracks: parseInt(minTracks),
+      maxTracks: parseInt(maxTracks),
+      similarityType,
+      semanticWeight: parseFloat(semanticWeight),
+      audioWeight: parseFloat(audioWeight),
+      diversityFactor: parseFloat(diversityFactor),
+      includeSeedTracks: !!includeSeedTracks,
+      allowTrackVariations: !!allowTrackVariations
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Failed to generate playlist.' });
+  }
+
+  if (!playlist || !playlist.tracks || playlist.tracks.length < minTracks) {
+    return res.status(400).json({
+      success: false,
+      message: `Could not generate a playlist with at least ${minTracks} tracks.`
+    });
+  }
+
   res.json({
     success: true,
     playlist
   });
 });
 
-/**
- * @desc    Get similar tracks to a specific track
- * @route   GET /api/playlists/tracks/:trackId
- * @access  Public
- */
 const getSimilarTracks = asyncHandler(async (req, res) => {
   const { trackId } = req.params;
   const {
@@ -65,25 +62,29 @@ const getSimilarTracks = asyncHandler(async (req, res) => {
     similarityType = 'combined',
     semanticWeight = 0.5,
     audioWeight = 0.5,
-    minSimilarity = 0.1
+    minSimilarity = 0.1,
+    allowTrackVariations = true
   } = req.query;
-  
-  // Validate trackId
+
   const track = getTrackById(trackId);
   if (!track) {
-    res.status(404);
-    throw new Error(`Track with ID ${trackId} not found`);
+    return res.status(404).json({ success: false, message: `Track with ID ${trackId} not found.` });
   }
-  
-  // Get similar tracks
-  const similarTracks = similarityService.findSimilarTracks(trackId, {
-    limit: parseInt(limit),
-    similarityType,
-    semanticWeight: parseFloat(semanticWeight),
-    audioWeight: parseFloat(audioWeight),
-    minSimilarity: parseFloat(minSimilarity)
-  });
-  
+
+  let similarTracks;
+  try {
+    similarTracks = similarityService.findSimilarTracks(trackId, {
+      limit: parseInt(limit),
+      similarityType,
+      semanticWeight: parseFloat(semanticWeight),
+      audioWeight: parseFloat(audioWeight),
+      minSimilarity: parseFloat(minSimilarity),
+      allowTrackVariations: allowTrackVariations === 'true' || allowTrackVariations === true
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Failed to find similar tracks.' });
+  }
+
   res.json({
     success: true,
     sourceTrack: {
@@ -95,66 +96,170 @@ const getSimilarTracks = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * @desc    Get all available facets
- * @route   GET /api/playlists/facets
- * @access  Public
- */
+const getTrackDetails = asyncHandler(async (req, res) => {
+  const { trackId } = req.params;
+  const track = getTrackById(trackId);
+  if (!track) {
+    return res.status(404).json({ success: false, message: `Track with ID ${trackId} not found.` });
+  }
+
+  const trackDetails = {
+    track_id: trackId,
+    track_name: track.track_name || 'Unknown Track',
+    artist_name: track.artist_name || 'Unknown Artist',
+    features: track.features || {},
+    tags: track.tags || {},
+    scores: track.scores || {},
+    lyrics: track.lyrics || null
+  };
+
+  res.json({
+    success: true,
+    track: trackDetails
+  });
+});
+
+const getSimilarityDetails = asyncHandler(async (req, res) => {
+  const { track1, track2 } = req.query;
+  const {
+    similarityType = 'combined',
+    semanticWeight = 0.5,
+    audioWeight = 0.5
+  } = req.query;
+
+  if (!track1 || !track2) {
+    return res.status(400).json({ success: false, message: 'Please provide both track1 and track2 parameters.' });
+  }
+
+  const sourceTrack = getTrackById(track1);
+  const targetTrack = getTrackById(track2);
+
+  if (!sourceTrack || !targetTrack) {
+    return res.status(404).json({ success: false, message: 'One or both tracks not found.' });
+  }
+
+  const overallSimilarity = similarityService.calculateTrackSimilarity(
+    track1,
+    track2,
+    similarityType,
+    parseFloat(semanticWeight),
+    parseFloat(audioWeight)
+  );
+
+  const semanticSimilarity = similarityService.calculateSemanticSimilarity(sourceTrack, targetTrack);
+  const audioSimilarity = similarityService.calculateAudioSimilarity(sourceTrack, targetTrack);
+  const breakdown = similarityService.getSimilarityBreakdown(sourceTrack, targetTrack);
+
+  res.json({
+    success: true,
+    similarity: {
+      overall: overallSimilarity,
+      semantic: semanticSimilarity,
+      audio: audioSimilarity,
+      breakdown
+    },
+    sourceTrack: {
+      track_id: track1,
+      track_name: sourceTrack.track_name || 'Unknown Track',
+      artist_name: sourceTrack.artist_name || 'Unknown Artist'
+    },
+    targetTrack: {
+      track_id: track2,
+      track_name: targetTrack.track_name || 'Unknown Track',
+      artist_name: targetTrack.artist_name || 'Unknown Artist'
+    }
+  });
+});
+
+const searchTracksController = asyncHandler(async (req, res) => {
+  const { query, limit = 10 } = req.query;
+
+  if (!query || query.trim() === '') {
+    return res.status(400).json({ success: false, message: 'Search query is required.' });
+  }
+
+  let results;
+  try {
+    results = searchTracks(query, parseInt(limit));
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Failed to search tracks.' });
+  }
+
+  res.json({
+    success: true,
+    query,
+    results
+  });
+});
+
+const getRandomTrackController = asyncHandler(async (req, res) => {
+  let track;
+  try {
+    track = getRandomTrack();
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Failed to get random track.' });
+  }
+
+  res.json({
+    success: true,
+    track
+  });
+});
+
 const getFacetsController = asyncHandler(async (req, res) => {
-  const facets = getFacets();
-  
+  let facets;
+  try {
+    facets = getFacets();
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || 'Failed to fetch facets.' });
+  }
+
   res.json({
     success: true,
     facets
   });
 });
 
-/**
- * @desc    Get all tags across all facets
- * @route   GET /api/playlists/tags
- * @access  Public
- */
 const getTagsController = asyncHandler(async (req, res) => {
   const { facet } = req.query;
-  
+
+  let tags;
   try {
-    const tags = getTags(facet);
-    
-    res.json({
-      success: true,
-      tags
-    });
+    tags = getTags(facet);
   } catch (error) {
-    res.status(400);
-    throw error;
+    return res.status(400).json({ success: false, message: error.message || 'Failed to fetch tags.' });
   }
+
+  res.json({
+    success: true,
+    tags
+  });
 });
 
-/**
- * @desc    Get all tags for a specific facet
- * @route   GET /api/playlists/facets/:facetName/tags
- * @access  Public
- */
 const getTagsByFacet = asyncHandler(async (req, res) => {
   const { facetName } = req.params;
-  
+
+  let tags;
   try {
-    const tags = getTags(facetName);
-    
-    res.json({
-      success: true,
-      facet: facetName,
-      tags
-    });
+    tags = getTags(facetName);
   } catch (error) {
-    res.status(400);
-    throw error;
+    return res.status(400).json({ success: false, message: error.message || 'Failed to fetch tags for facet.' });
   }
+
+  res.json({
+    success: true,
+    facet: facetName,
+    tags
+  });
 });
 
 module.exports = {
   generatePlaylist,
   getSimilarTracks,
+  getTrackDetails,
+  getSimilarityDetails,
+  searchTracks: searchTracksController,
+  getRandomTrack: getRandomTrackController,
   getFacets: getFacetsController,
   getTags: getTagsController,
   getTagsByFacet

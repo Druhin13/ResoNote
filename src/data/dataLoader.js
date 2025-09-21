@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 const { promisify } = require('util');
+const Fuse = require('fuse.js');
 
 const readFileAsync = promisify(fs.readFile);
 
@@ -10,6 +11,7 @@ let tracksWithTags = new Map();
 let tracksWithFeatures = new Map();
 let allTracks = new Map();
 let dataLoaded = false;
+let searchIndex = null;
 
 /**
  * Load data from JSONL file
@@ -123,6 +125,45 @@ function mergeTracks(tagsMap, featuresMap) {
 }
 
 /**
+ * Initialize search index for tracks
+ */
+function initSearchIndex() {
+  if (!dataLoaded || searchIndex) return;
+  
+  // Prepare search documents
+  const searchDocuments = [];
+  
+  for (const [trackId, track] of allTracks.entries()) {
+    if (!track.track_name) continue;
+    
+    searchDocuments.push({
+      track_id: trackId,
+      track_name: track.track_name || '',
+      artist_name: track.artist_name || '',
+      lyrics: track.lyrics || ''
+    });
+  }
+  
+  // Configure Fuse.js options
+  const options = {
+    includeScore: true,
+    shouldSort: true,
+    threshold: 0.4,
+    location: 0,
+    distance: 100,
+    maxPatternLength: 32,
+    minMatchCharLength: 2,
+    keys: [
+      { name: 'track_name', weight: 0.7 },
+      { name: 'artist_name', weight: 0.2 },
+      { name: 'lyrics', weight: 0.1 }
+    ]
+  };
+  
+  searchIndex = new Fuse(searchDocuments, options);
+}
+
+/**
  * Main function to load all data
  */
 async function loadData() {
@@ -142,6 +183,10 @@ async function loadData() {
     console.log(`Total unique tracks: ${allTracks.size}`);
     
     dataLoaded = true;
+    
+    // Initialize search index
+    initSearchIndex();
+    
     console.log('Data loading complete');
   } catch (error) {
     console.error('Error loading data:', error);
@@ -151,6 +196,7 @@ async function loadData() {
 
 /**
  * Get all loaded tracks
+ * @returns {Map} - Map of all tracks
  */
 function getAllTracks() {
   if (!dataLoaded) {
@@ -169,6 +215,148 @@ function getTrackById(trackId) {
     throw new Error('Data not loaded yet');
   }
   return allTracks.get(trackId) || null;
+}
+
+/**
+ * Get a random track from the dataset
+ * @returns {Object} A random track
+ */
+function getRandomTrack() {
+  if (!dataLoaded) {
+    throw new Error('Data not loaded yet');
+  }
+  
+  const trackIds = Array.from(allTracks.keys());
+  if (trackIds.length === 0) {
+    throw new Error('No tracks available');
+  }
+  
+  const randomIndex = Math.floor(Math.random() * trackIds.length);
+  const randomTrackId = trackIds[randomIndex];
+  const track = allTracks.get(randomTrackId);
+  
+  return {
+    track_id: randomTrackId,
+    track_name: track.track_name || 'Unknown Track',
+    artist_name: track.artist_name || 'Unknown Artist'
+  };
+}
+
+/**
+ * Safely convert a value to lowercase string
+ * @param {*} value - The value to convert
+ * @returns {string} The lowercase string
+ */
+function safeToLowerCase(value) {
+  // Check if value is a string
+  if (typeof value === 'string') {
+    return value.toLowerCase();
+  } 
+  // If value is null or undefined, return empty string
+  if (value == null) {
+    return '';
+  }
+  // Otherwise try to convert to string
+  try {
+    return String(value).toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * Check for exact matches in track data
+ * @param {string} query - Search query
+ * @param {number} limit - Maximum number of results to return
+ * @returns {Array} - Array of exact matching tracks
+ */
+function findExactMatches(query, limit = 10) {
+  const exactMatches = [];
+  const queryLower = query.toLowerCase();
+  
+  for (const [trackId, track] of allTracks.entries()) {
+    const trackName = safeToLowerCase(track.track_name);
+    const artistName = safeToLowerCase(track.artist_name);
+    
+    // Check for exact matches in track name
+    if (trackName === queryLower || trackName.includes(queryLower)) {
+      exactMatches.push({
+        track_id: trackId,
+        track_name: track.track_name || 'Unknown Track',
+        artist_name: track.artist_name || 'Unknown Artist',
+        exactMatch: true
+      });
+      
+      if (exactMatches.length >= limit) {
+        return exactMatches;
+      }
+    }
+    
+    // Check for exact matches in artist name
+    if (artistName === queryLower || artistName.includes(queryLower)) {
+      if (!exactMatches.some(m => m.track_id === trackId)) {
+        exactMatches.push({
+          track_id: trackId,
+          track_name: track.track_name || 'Unknown Track',
+          artist_name: track.artist_name || 'Unknown Artist',
+          exactMatch: true
+        });
+        
+        if (exactMatches.length >= limit) {
+          return exactMatches;
+        }
+      }
+    }
+  }
+  
+  return exactMatches;
+}
+
+/**
+ * Search for tracks based on track name, artist name, and lyrics
+ * @param {string} query - Search query
+ * @param {number} limit - Maximum number of results to return
+ * @returns {Array} - Array of matching tracks
+ */
+function searchTracks(query, limit = 10) {
+  if (!dataLoaded) {
+    throw new Error('Data not loaded yet');
+  }
+  
+  if (!query || query.trim() === '') {
+    return [];
+  }
+  
+  query = query.trim();
+  
+  // First, check for exact matches
+  const exactMatches = findExactMatches(query, limit);
+  if (exactMatches.length >= limit) {
+    return exactMatches;
+  }
+  
+  // If we still need more results, use fuzzy search
+  if (!searchIndex) {
+    initSearchIndex();
+  }
+  
+  const fuzzyResults = searchIndex.search(query);
+  
+  // Combine exact matches with fuzzy search results
+  const exactMatchIds = new Set(exactMatches.map(match => match.track_id));
+  const remainingLimit = limit - exactMatches.length;
+  
+  const fuzzyMatches = fuzzyResults
+    .filter(result => !exactMatchIds.has(result.item.track_id))
+    .slice(0, remainingLimit)
+    .map(result => ({
+      track_id: result.item.track_id,
+      track_name: result.item.track_name,
+      artist_name: result.item.artist_name,
+      exactMatch: false
+    }));
+  
+  return [...exactMatches, ...fuzzyMatches];
 }
 
 /**
@@ -238,6 +426,8 @@ module.exports = {
   loadData,
   getAllTracks,
   getTrackById,
+  getRandomTrack,
+  searchTracks,
   getFacets,
   getTags
 };
