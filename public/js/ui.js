@@ -6,7 +6,11 @@
  * - Show 'Clear' (clear-results) button only when a playlist is visible.
  * - Ensure random button reverts to default when selection cleared.
  * - Fix selected track thumbnail bug by updating _refreshThumbForTrackInUI to use exact matching for track IDs.
- * - Keep slider displays as percentages (already implemented).
+ * - Update fuzzy search logic in searchTracks to better handle multi-term queries.
+ *   If the API search returns no results for a multi-term query, we then search for each individual term,
+ *   combine the results (removing duplicates), and then filter in a fuzzy manner.
+ * - Exclude tracks that have already been selected from showing again in the search results.
+ * - Keep slider displays as percentages.
  * - Responsive interactions are controlled via CSS; JS shows/hides elements when appropriate.
  */
 
@@ -280,7 +284,45 @@ const UI = {
   async searchTracks(query) {
     if (!query || query.length < 2) return;
     try {
-      const results = await API.searchTracks(query);
+      // Call the API search function normally
+      let results = await API.searchTracks(query);
+
+      // Break the query into terms
+      const terms = query.split(/\s+/).filter(t => t);
+      
+      // Exclude tracks that are already selected
+      results = results.filter(track => !this.state.selectedTracks.some(selected => selected.track_id === track.track_id));
+
+      // Use fuzzy filtering on the API results if more than one term exists
+      if (terms.length > 1 && results && results.length > 0) {
+        results = results.filter(track => {
+          const combined = (track.track_name + " " + track.artist_name).toLowerCase();
+          return terms.every(term => combined.includes(term.toLowerCase()));
+        });
+      }
+      
+      // If no results found, perform a fallback union search by each individual term
+      if (!results || results.length === 0) {
+        let unionResults = [];
+        for (const term of terms) {
+          const partialResults = await API.searchTracks(term);
+          // Exclude already selected tracks
+          unionResults = unionResults.concat(partialResults.filter(track => !this.state.selectedTracks.some(selected => selected.track_id === track.track_id)));
+        }
+        // Deduplicate union results by track_id
+        const dedup = {};
+        unionResults.forEach(track => {
+          dedup[track.track_id] = track;
+        });
+        results = Object.values(dedup).filter(track => {
+          const combined = (track.track_name + " " + track.artist_name).toLowerCase();
+          // Count how many terms appear in the combined string
+          let matchCount = terms.filter(term => combined.includes(term.toLowerCase())).length;
+          // Require at least 70% of terms to match (rounded down)
+          return matchCount >= Math.floor(terms.length * 0.7);
+        });
+      }
+      
       this.renderSearchResults(results);
     } catch (err) {
       console.error("searchTracks error", err);
@@ -647,49 +689,34 @@ const UI = {
     }
   },
 
-  renderTrackDetails(
-    track,
-    similarityDetails,
-    isSeed,
-    isVariation,
-    variationOf
-  ) {
+  renderTrackDetails(track, similarityDetails, isSeed, isVariation, variationOf) {
+    // Build modal content for detailed track view with enhanced spacing and styling for tags, features, lyrics, and similarity reason.
     let html = `
       <div class="track-details-section">
         <h3><i data-lucide="music"></i> Track Information</h3>
         <div class="track-info">
-          <div class="track-info-column">
-            <div class="track-info-item">
-              <div class="track-info-label">Track Name</div>
-              <div class="track-info-value">${this.escapeHtml(
-                track.track_name
-              )}</div>
-            </div>
-            <div class="track-info-item">
-              <div class="track-info-label">Artist</div>
-              <div class="track-info-value">${this.escapeHtml(
-                track.artist_name
-              )}</div>
-            </div>
-            ${
-              isVariation
-                ? `<div class="track-info-item">
-              <div class="track-info-label">Variation</div>
-              <div class="track-info-value variation-info">This is a variation of track ID: ${this.escapeHtml(
-                variationOf
-              )}</div>
-            </div>`
-                : ""
-            }
-            <div class="track-info-item">
-              <div class="track-info-label">Spotify Link</div>
-              <div class="track-info-value">
-                <a href="https://open.spotify.com/track/${encodeURIComponent(
-                  track.track_id
-                )}" target="_blank" class="btn btn-outline btn-sm">
-                  <i data-lucide="external-link"></i> Open in Spotify
-                </a>
-              </div>
+          <div class="track-info-item">
+            <div class="track-info-label">Track Name</div>
+            <div class="track-info-value">${this.escapeHtml(track.track_name)}</div>
+          </div>
+          <div class="track-info-item">
+            <div class="track-info-label">Artist</div>
+            <div class="track-info-value">${this.escapeHtml(track.artist_name)}</div>
+          </div>
+          ${
+            isVariation
+              ? `<div class="track-info-item">
+                  <div class="track-info-label">Variation</div>
+                  <div class="track-info-value variation-info">This is a variation of track ID: ${this.escapeHtml(variationOf)}</div>
+                </div>`
+              : ""
+          }
+          <div class="track-info-item">
+            <div class="track-info-label">Spotify Link</div>
+            <div class="track-info-value">
+              <a href="https://open.spotify.com/track/${encodeURIComponent(track.track_id)}" target="_blank" class="btn btn-outline btn-sm">
+                <i data-lucide="external-link"></i> Open in Spotify
+              </a>
             </div>
           </div>
         </div>
@@ -697,29 +724,36 @@ const UI = {
     `;
 
     if (track.tags && Object.keys(track.tags).length > 0) {
-      html += `<div class="track-details-section"><h3><i data-lucide="tag"></i> Semantic Tags</h3>`;
+      html += `<div class="track-details-section">
+                <h3><i data-lucide="tag"></i> Semantic Tags</h3>`;
       for (const [facet, tags] of Object.entries(track.tags)) {
         if (!tags || tags.length === 0) continue;
-        html += `<div class="track-info-item"><div class="track-info-label">${this.escapeHtml(
-          facet.replace("_", " ")
-        )}</div><div class="tags-list">`;
+        html += `<div class="track-info-item">
+                   <div class="track-info-label">${this.escapeHtml(facet.replace('_', ' '))}</div>
+                   <div class="tags-list">`;
         tags.forEach((tag) => {
-          const confidence =
-            track.scores && track.scores[facet] && track.scores[facet][tag];
-          const scoreHtml = confidence
-            ? `<span class="tag-score">${Math.round(confidence * 100)}%</span>`
-            : "";
-          html += `<span class="tag-item">${this.escapeHtml(
-            tag
-          )}${scoreHtml}</span>`;
+          // Determine tag status classes dynamically.
+          // If a score exists for the tag, considering a threshold of 0.7 to mark a match.
+          let statusClass = "default";
+          if (track.scores && track.scores[facet] && track.scores[facet][tag] != null) {
+            const score = track.scores[facet][tag];
+            statusClass = score >= 0.7 ? "match" : "nomatch";
+          }
+          const scoreHtml = (track.scores && track.scores[facet] && track.scores[facet][tag])
+              ? `<span class="tag-score">${Math.round(track.scores[facet][tag] * 100)}%</span>`
+              : '';
+          html += `<span class="tag-item ${statusClass}">${this.escapeHtml(tag)}${scoreHtml}</span>`;
         });
-        html += `</div></div>`;
+        html += `   </div>
+                 </div>`;
       }
       html += `</div>`;
     }
 
     if (track.features && Object.keys(track.features).length > 0) {
-      html += `<div class="track-details-section"><h3><i data-lucide="waves"></i> Audio Features</h3><div class="features-grid">`;
+      html += `<div class="track-details-section">
+                <h3><i data-lucide="waves"></i> Audio Features</h3>
+                <div class="features-grid">`;
       const featureLabels = {
         danceability: "Danceability",
         energy: "Energy",
@@ -730,40 +764,67 @@ const UI = {
         loudness: "Loudness (dB)",
         speechiness: "Speechiness",
         liveness: "Liveness",
-        mode: "Mode",
+        mode: "Mode"
       };
       for (const [feature, value] of Object.entries(track.features)) {
         if (value === null || typeof value === "undefined") continue;
         const label = featureLabels[feature] || feature;
         let displayValue = value;
         if (feature === "tempo") displayValue = `${Math.round(value)} BPM`;
-        else if (feature === "loudness")
-          displayValue = `${value.toFixed(1)} dB`;
-        else if (feature === "mode")
-          displayValue = value === 1 ? "Major" : "Minor";
+        else if (feature === "loudness") displayValue = `${value.toFixed(1)} dB`;
+        else if (feature === "mode") displayValue = value === 1 ? "Major" : "Minor";
         else if (typeof value === "number") displayValue = value.toFixed(2);
-        html += `<div class="feature-item"><div class="feature-name">${this.escapeHtml(
-          label
-        )}</div><div class="feature-value">${this.escapeHtml(
-          String(displayValue)
-        )}</div></div>`;
+        html += `<div class="feature-item">
+                   <div class="feature-name">${this.escapeHtml(label)}</div>
+                   <div class="feature-value">${this.escapeHtml(String(displayValue))}</div>
+                 </div>`;
       }
-      html += `</div></div>`;
+      html += `  </div>
+              </div>`;
     }
 
     if (similarityDetails && similarityDetails.similarity) {
       const s = similarityDetails.similarity;
       const overallPct = Math.round((s.overall || 0) * 100);
-      html += `<div class="track-details-section"><h3><i data-lucide="target"></i> Similarity Analysis</h3><div class="similarity-breakdown"><h4>Overall Similarity: ${overallPct}%</h4></div></div>`;
+      html += `<div class="track-details-section">
+                 <h3><i data-lucide="target"></i> Similarity Analysis</h3>
+                 <div class="similarity-breakdown">
+                   <h4>Overall Similarity: ${overallPct}%</h4>
+                   <div class="similarity-reason">${this.getSimilarityReason(s)}</div>
+                 </div>
+               </div>`;
     }
 
     if (track.lyrics) {
-      html += `<div class="track-details-section"><h3><i data-lucide="file-text"></i> Lyrics</h3><div class="track-info-value" style="white-space: pre-line;">${this.escapeHtml(
-        track.lyrics
-      )}</div></div>`;
+      html += `<div class="track-details-section">
+                 <h3><i data-lucide="file-text"></i> Lyrics</h3>
+                 <div class="lyrics-section">
+                   ${this.escapeHtml(track.lyrics)}
+                 </div>
+               </div>`;
     }
 
     this.elements.modalTrackDetails.innerHTML = html;
+  },
+
+  getSimilarityReason(similarity) {
+    if (!similarity) return "relevant characteristics";
+    try {
+      if (similarity.breakdown && similarity.breakdown.semantic && similarity.breakdown.semantic.coOccurrence && similarity.breakdown.semantic.coOccurrence.score > 0.5) {
+        const patterns = similarity.breakdown.semantic.coOccurrence.matchingPatterns;
+        if (patterns && patterns.length > 0) {
+          return `Matched tag combinations around "${patterns[0].pattern}"`;
+        }
+        return "semantic tag combinations";
+      }
+      if (similarity.semantic > similarity.audio) {
+        return "semantic themes and emotional characteristics";
+      } else {
+        return "audio features and rhythm characteristics";
+      }
+    } catch (err) {
+      return "relevant characteristics";
+    }
   },
 
   closeTrackDetailsModal() {
