@@ -1,4 +1,3 @@
-// public/js/ui.js
 /**
  * UI manipulation functions for ResoNote
  *
@@ -10,6 +9,16 @@
  *   If the API search returns no results for a multi-term query, we then search for each individual term,
  *   combine the results (removing duplicates), and then filter in a fuzzy manner.
  * - Exclude tracks that have already been selected from showing again in the search results.
+ * - Use session storage so that once a playlist is generated, if the user reloads the page the last state is restored.
+ *   All preference details and options are saved including:
+ *      - Seed Tracks
+ *      - Similarity Type
+ *      - Semantic and Audio Weights
+ *      - Playlist Size (min and max)
+ *      - Diversity Factor
+ *      - Include Seed Tracks checkbox
+ *      - Allow Track Variations checkbox
+ * - Additionally, on re-loading state, album images are re-fetched so that placeholders are replaced.
  * - Keep slider displays as percentages.
  * - Responsive interactions are controlled via CSS; JS shows/hides elements when appropriate.
  */
@@ -77,6 +86,9 @@ const UI = {
     if (this.elements.clearResultsBtn) {
       this.elements.clearResultsBtn.style.display = "none";
     }
+
+    // Load state from sessionStorage if available
+    this.loadStateFromSession();
 
     this.setupEventListeners();
     this._initSliderDisplays();
@@ -193,6 +205,7 @@ const UI = {
         } else {
           this.elements.weightsContainer.style.display = "none";
         }
+        this.saveStateToSession();
       });
     });
 
@@ -209,6 +222,7 @@ const UI = {
         audioWeight * 100
       )}%`;
       this.state.audioWeight = audioWeight;
+      this.saveStateToSession();
     });
 
     this.elements.audioWeightSlider.addEventListener("input", () => {
@@ -223,6 +237,7 @@ const UI = {
         semanticWeight * 100
       )}%`;
       this.state.semanticWeight = semanticWeight;
+      this.saveStateToSession();
     });
 
     this.elements.diversityFactorSlider.addEventListener("input", () => {
@@ -230,19 +245,33 @@ const UI = {
       this.elements.diversityFactorValue.textContent = `${Math.round(
         value * 100
       )}%`;
+      this.saveStateToSession();
     });
 
     this.elements.minTracksInput.addEventListener("change", () => {
       const minTracks = parseInt(this.elements.minTracksInput.value);
       const maxTracks = parseInt(this.elements.maxTracksInput.value);
       if (minTracks > maxTracks) this.elements.maxTracksInput.value = minTracks;
+      this.saveStateToSession();
     });
 
     this.elements.maxTracksInput.addEventListener("change", () => {
       const minTracks = parseInt(this.elements.minTracksInput.value);
       const maxTracks = parseInt(this.elements.maxTracksInput.value);
       if (maxTracks < minTracks) this.elements.minTracksInput.value = maxTracks;
+      this.saveStateToSession();
     });
+
+    this.elements.includeSeedTracksCheckbox.addEventListener("change", () => {
+      this.saveStateToSession();
+    });
+
+    this.elements.allowTrackVariationsCheckbox.addEventListener(
+      "change",
+      () => {
+        this.saveStateToSession();
+      }
+    );
 
     this.elements.generatePlaylistBtn.addEventListener("click", () =>
       this.generatePlaylist()
@@ -250,9 +279,11 @@ const UI = {
 
     // Clear (only shown when playlist visible)
     if (this.elements.clearResultsBtn) {
-      this.elements.clearResultsBtn.addEventListener("click", () =>
-        this.clearResults()
-      );
+      this.elements.clearResultsBtn.addEventListener("click", () => {
+        this.clearResults();
+        // Also clear session state when user clears results
+        sessionStorage.removeItem("ResoNoteState");
+      });
     }
 
     // Export CSV
@@ -385,6 +416,7 @@ const UI = {
           this.addSelectedTrack(track);
           this.elements.searchResults.classList.add("hidden");
           this.elements.trackSearchInput.value = "";
+          this.saveStateToSession();
         });
 
         this.elements.searchResults.appendChild(resultItem);
@@ -412,6 +444,7 @@ const UI = {
       .catch(() => {});
 
     this.updateSelectedTracks();
+    this.saveStateToSession();
   },
 
   removeSelectedTrack(trackId) {
@@ -419,6 +452,7 @@ const UI = {
       (t) => t.track_id !== trackId
     );
     this.updateSelectedTracks();
+    this.saveStateToSession();
     // If selection empty, restore random button to default
     if (this.state.selectedTracks.length === 0) {
       if (this.elements.randomTrackBtn) {
@@ -549,7 +583,7 @@ const UI = {
       }
       this.state.currentPlaylist = playlist;
 
-      // Preload images (non-blocking)
+      // Preload images (non-blocking) for playlist tracks
       playlist.tracks.forEach((t) => {
         if (!this.state.imageCache[t.track_id]) {
           API.getTrackImage(t.track_id)
@@ -564,6 +598,7 @@ const UI = {
       });
 
       this.displayPlaylist(playlist);
+      this.saveStateToSession();
     } catch (err) {
       const message = (err && err.message) || "Failed to generate playlist";
       this.showError(message);
@@ -919,10 +954,6 @@ const UI = {
       this.elements.emptyState.style.display = "flex";
     if (this.elements.trackList) this.elements.trackList.innerHTML = "";
     this.state.currentPlaylist = null;
-
-    // Hide Clear button now that there's no playlist
-    if (this.elements.clearResultsBtn)
-      this.elements.clearResultsBtn.style.display = "none";
   },
 
   _refreshThumbForTrackInUI(trackId, imageUrl) {
@@ -1018,6 +1049,120 @@ const UI = {
       URL.revokeObjectURL(url);
       document.body.removeChild(a);
     }, 5000);
+  },
+
+  // Save the complete state to sessionStorage
+  saveStateToSession() {
+    const stateToSave = {
+      selectedTracks: this.state.selectedTracks,
+      currentPlaylist: this.state.currentPlaylist,
+      similarityType: this.state.similarityType,
+      semanticWeight: this.state.semanticWeight,
+      audioWeight: this.state.audioWeight,
+      minTracks: this.elements.minTracksInput.value,
+      maxTracks: this.elements.maxTracksInput.value,
+      diversityFactor: this.elements.diversityFactorSlider.value,
+      includeSeedTracks: this.elements.includeSeedTracksCheckbox.checked,
+      allowTrackVariations: this.elements.allowTrackVariationsCheckbox.checked,
+    };
+    sessionStorage.setItem("ResoNoteState", JSON.stringify(stateToSave));
+  },
+
+  // Load state from sessionStorage and update the UI accordingly
+  loadStateFromSession() {
+    const savedState = sessionStorage.getItem("ResoNoteState");
+    if (savedState) {
+      try {
+        const stateObj = JSON.parse(savedState);
+        if (stateObj.selectedTracks) {
+          this.state.selectedTracks = stateObj.selectedTracks;
+        }
+        if (stateObj.currentPlaylist) {
+          this.state.currentPlaylist = stateObj.currentPlaylist;
+          // Display the saved playlist
+          this.displayPlaylist(this.state.currentPlaylist);
+        }
+        if (stateObj.similarityType) {
+          this.state.similarityType = stateObj.similarityType;
+          // Update radio buttons to reflect the saved similarity type
+          this.elements.similarityTypeRadios.forEach((radio) => {
+            radio.checked = radio.value === stateObj.similarityType;
+          });
+          if (stateObj.similarityType === "combined") {
+            this.elements.weightsContainer.style.display = "flex";
+          } else {
+            this.elements.weightsContainer.style.display = "none";
+          }
+        }
+        if (stateObj.semanticWeight) {
+          this.state.semanticWeight = stateObj.semanticWeight;
+          this.elements.semanticWeightSlider.value = stateObj.semanticWeight;
+          this.elements.semanticWeightValue.textContent = `${Math.round(
+            stateObj.semanticWeight * 100
+          )}%`;
+        }
+        if (stateObj.audioWeight) {
+          this.state.audioWeight = stateObj.audioWeight;
+          this.elements.audioWeightSlider.value = stateObj.audioWeight;
+          this.elements.audioWeightValue.textContent = `${Math.round(
+            stateObj.audioWeight * 100
+          )}%`;
+        }
+        if (stateObj.minTracks) {
+          this.elements.minTracksInput.value = stateObj.minTracks;
+        }
+        if (stateObj.maxTracks) {
+          this.elements.maxTracksInput.value = stateObj.maxTracks;
+        }
+        if (stateObj.diversityFactor) {
+          this.elements.diversityFactorSlider.value = stateObj.diversityFactor;
+          this.elements.diversityFactorValue.textContent = `${Math.round(
+            stateObj.diversityFactor * 100
+          )}%`;
+        }
+        if (typeof stateObj.includeSeedTracks !== "undefined") {
+          this.elements.includeSeedTracksCheckbox.checked =
+            stateObj.includeSeedTracks;
+        }
+        if (typeof stateObj.allowTrackVariations !== "undefined") {
+          this.elements.allowTrackVariationsCheckbox.checked =
+            stateObj.allowTrackVariations;
+        }
+      } catch (e) {
+        console.error("Error parsing session state", e);
+      }
+
+      // For each saved selected track, re-fetch its album image if not already in cache
+      if (this.state.selectedTracks && this.state.selectedTracks.length > 0) {
+        this.state.selectedTracks.forEach((track) => {
+          API.getTrackImage(track.track_id)
+            .then((url) => {
+              if (url) {
+                this.state.imageCache[track.track_id] = url;
+                this._refreshThumbForTrackInUI(track.track_id, url);
+              }
+            })
+            .catch(() => {});
+        });
+      }
+      // If a playlist exists in state, for each track in it re-fetch its album image
+      if (
+        this.state.currentPlaylist &&
+        this.state.currentPlaylist.tracks &&
+        this.state.currentPlaylist.tracks.length > 0
+      ) {
+        this.state.currentPlaylist.tracks.forEach((track) => {
+          API.getTrackImage(track.track_id)
+            .then((url) => {
+              if (url) {
+                this.state.imageCache[track.track_id] = url;
+                this._refreshThumbForTrackInUI(track.track_id, url);
+              }
+            })
+            .catch(() => {});
+        });
+      }
+    }
   },
 };
 
