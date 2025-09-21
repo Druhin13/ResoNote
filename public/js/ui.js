@@ -105,7 +105,9 @@ const UI = {
   },
 
   _initSliderDisplays() {
-    const semantic = parseFloat(this.elements.semanticWeightSlider.value || 0.5);
+    const semantic = parseFloat(
+      this.elements.semanticWeightSlider.value || 0.5
+    );
     const audio = parseFloat(
       this.elements.audioWeightSlider.value || 1 - semantic
     );
@@ -288,41 +290,63 @@ const UI = {
       let results = await API.searchTracks(query);
 
       // Break the query into terms
-      const terms = query.split(/\s+/).filter(t => t);
-      
+      const terms = query.split(/\s+/).filter((t) => t);
+
       // Exclude tracks that are already selected
-      results = results.filter(track => !this.state.selectedTracks.some(selected => selected.track_id === track.track_id));
+      results = results.filter(
+        (track) =>
+          !this.state.selectedTracks.some(
+            (selected) => selected.track_id === track.track_id
+          )
+      );
 
       // Use fuzzy filtering on the API results if more than one term exists
       if (terms.length > 1 && results && results.length > 0) {
-        results = results.filter(track => {
-          const combined = (track.track_name + " " + track.artist_name).toLowerCase();
-          return terms.every(term => combined.includes(term.toLowerCase()));
+        results = results.filter((track) => {
+          const combined = (
+            track.track_name +
+            " " +
+            track.artist_name
+          ).toLowerCase();
+          return terms.every((term) => combined.includes(term.toLowerCase()));
         });
       }
-      
+
       // If no results found, perform a fallback union search by each individual term
       if (!results || results.length === 0) {
         let unionResults = [];
         for (const term of terms) {
           const partialResults = await API.searchTracks(term);
           // Exclude already selected tracks
-          unionResults = unionResults.concat(partialResults.filter(track => !this.state.selectedTracks.some(selected => selected.track_id === track.track_id)));
+          unionResults = unionResults.concat(
+            partialResults.filter(
+              (track) =>
+                !this.state.selectedTracks.some(
+                  (selected) => selected.track_id === track.track_id
+                )
+            )
+          );
         }
         // Deduplicate union results by track_id
         const dedup = {};
-        unionResults.forEach(track => {
+        unionResults.forEach((track) => {
           dedup[track.track_id] = track;
         });
-        results = Object.values(dedup).filter(track => {
-          const combined = (track.track_name + " " + track.artist_name).toLowerCase();
+        results = Object.values(dedup).filter((track) => {
+          const combined = (
+            track.track_name +
+            " " +
+            track.artist_name
+          ).toLowerCase();
           // Count how many terms appear in the combined string
-          let matchCount = terms.filter(term => combined.includes(term.toLowerCase())).length;
+          let matchCount = terms.filter((term) =>
+            combined.includes(term.toLowerCase())
+          ).length;
           // Require at least 70% of terms to match (rounded down)
           return matchCount >= Math.floor(terms.length * 0.7);
         });
       }
-      
+
       this.renderSearchResults(results);
     } catch (err) {
       console.error("searchTracks error", err);
@@ -541,8 +565,7 @@ const UI = {
 
       this.displayPlaylist(playlist);
     } catch (err) {
-      const message =
-        (err && err.message) || "Failed to generate playlist";
+      const message = (err && err.message) || "Failed to generate playlist";
       this.showError(message);
     }
   },
@@ -608,10 +631,9 @@ const UI = {
             : "0%"
         }</div>
         <div class="track-actions">
-          <button class="btn-icon play-btn" aria-label="Play ${this.escapeHtml(
+          <button class="btn-icon play-btn spotify" aria-label="Play ${this.escapeHtml(
             track.track_name
-          )}">
-            <i data-lucide="play"></i>
+          )} on Spotify">
           </button>
           <button class="btn-icon info-btn" aria-label="Details for ${this.escapeHtml(
             track.track_name
@@ -680,7 +702,7 @@ const UI = {
         <div class="error-state">
           <i data-lucide="alert-circle"></i>
           <p>Failed to load track details: ${this.escapeHtml(
-            (err && err.message) ? err.message : "Unknown error"
+            err && err.message ? err.message : "Unknown error"
           )}</p>
         </div>
       `;
@@ -689,32 +711,45 @@ const UI = {
     }
   },
 
-  renderTrackDetails(track, similarityDetails, isSeed, isVariation, variationOf) {
+  renderTrackDetails(
+    track,
+    similarityDetails,
+    isSeed,
+    isVariation,
+    variationOf
+  ) {
     // Build modal content for detailed track view with enhanced spacing and styling for tags, features, lyrics, and similarity reason.
     let html = `
       <div class="track-details-section">
         <h3><i data-lucide="music"></i> Track Information</h3>
-        <div class="track-info">
+        <div class="track-info modal-section">
           <div class="track-info-item">
             <div class="track-info-label">Track Name</div>
-            <div class="track-info-value">${this.escapeHtml(track.track_name)}</div>
+            <div class="track-info-value">${this.escapeHtml(
+              track.track_name
+            )}</div>
           </div>
           <div class="track-info-item">
             <div class="track-info-label">Artist</div>
-            <div class="track-info-value">${this.escapeHtml(track.artist_name)}</div>
+            <div class="track-info-value">${this.escapeHtml(
+              track.artist_name
+            )}</div>
           </div>
           ${
             isVariation
               ? `<div class="track-info-item">
                   <div class="track-info-label">Variation</div>
-                  <div class="track-info-value variation-info">This is a variation of track ID: ${this.escapeHtml(variationOf)}</div>
+                  <div class="track-info-value variation-info">This is a variation of track ID: ${this.escapeHtml(
+                    variationOf
+                  )}</div>
                 </div>`
               : ""
           }
           <div class="track-info-item">
-            <div class="track-info-label">Spotify Link</div>
             <div class="track-info-value">
-              <a href="https://open.spotify.com/track/${encodeURIComponent(track.track_id)}" target="_blank" class="btn btn-outline btn-sm">
+              <a href="https://open.spotify.com/track/${encodeURIComponent(
+                track.track_id
+              )}" target="_blank" class="btn btn-outline btn-sm">
                 <i data-lucide="external-link"></i> Open in Spotify
               </a>
             </div>
@@ -725,29 +760,40 @@ const UI = {
 
     if (track.tags && Object.keys(track.tags).length > 0) {
       html += `<div class="track-details-section">
-                <h3><i data-lucide="tag"></i> Semantic Tags</h3>`;
+            <h3><i data-lucide="tag"></i> Semantic Tags</h3>
+            <div class="track-info modal-section">`;
       for (const [facet, tags] of Object.entries(track.tags)) {
         if (!tags || tags.length === 0) continue;
-        html += `<div class="track-info-item">
-                   <div class="track-info-label">${this.escapeHtml(facet.replace('_', ' '))}</div>
-                   <div class="tags-list">`;
+        html += `<div class="track-info-item modal-section">
+               <div class="track-info-label">${this.escapeHtml(
+                 facet.replace("_", " ")
+               )}</div>
+               <div class="tags-list">`;
         tags.forEach((tag) => {
-          // Determine tag status classes dynamically.
-          // If a score exists for the tag, considering a threshold of 0.7 to mark a match.
           let statusClass = "default";
-          if (track.scores && track.scores[facet] && track.scores[facet][tag] != null) {
+          if (
+            track.scores &&
+            track.scores[facet] &&
+            track.scores[facet][tag] != null
+          ) {
             const score = track.scores[facet][tag];
             statusClass = score >= 0.7 ? "match" : "nomatch";
           }
-          const scoreHtml = (track.scores && track.scores[facet] && track.scores[facet][tag])
-              ? `<span class="tag-score">${Math.round(track.scores[facet][tag] * 100)}%</span>`
-              : '';
-          html += `<span class="tag-item ${statusClass}">${this.escapeHtml(tag)}${scoreHtml}</span>`;
+          const scoreHtml =
+            track.scores && track.scores[facet] && track.scores[facet][tag]
+              ? `<span class="tag-score">${Math.round(
+                  track.scores[facet][tag] * 100
+                )}%</span>`
+              : "";
+          html += `<span class="tag-item ${statusClass}">${this.escapeHtml(
+            tag
+          )}${scoreHtml}</span>`;
         });
         html += `   </div>
-                 </div>`;
+             </div>`;
       }
-      html += `</div>`;
+      html += `   </div>
+           </div>`;
     }
 
     if (track.features && Object.keys(track.features).length > 0) {
@@ -764,19 +810,23 @@ const UI = {
         loudness: "Loudness (dB)",
         speechiness: "Speechiness",
         liveness: "Liveness",
-        mode: "Mode"
+        mode: "Mode",
       };
       for (const [feature, value] of Object.entries(track.features)) {
         if (value === null || typeof value === "undefined") continue;
         const label = featureLabels[feature] || feature;
         let displayValue = value;
         if (feature === "tempo") displayValue = `${Math.round(value)} BPM`;
-        else if (feature === "loudness") displayValue = `${value.toFixed(1)} dB`;
-        else if (feature === "mode") displayValue = value === 1 ? "Major" : "Minor";
+        else if (feature === "loudness")
+          displayValue = `${value.toFixed(1)} dB`;
+        else if (feature === "mode")
+          displayValue = value === 1 ? "Major" : "Minor";
         else if (typeof value === "number") displayValue = value.toFixed(2);
         html += `<div class="feature-item">
                    <div class="feature-name">${this.escapeHtml(label)}</div>
-                   <div class="feature-value">${this.escapeHtml(String(displayValue))}</div>
+                   <div class="feature-value">${this.escapeHtml(
+                     String(displayValue)
+                   )}</div>
                  </div>`;
       }
       html += `  </div>
@@ -790,7 +840,9 @@ const UI = {
                  <h3><i data-lucide="target"></i> Similarity Analysis</h3>
                  <div class="similarity-breakdown">
                    <h4>Overall Similarity: ${overallPct}%</h4>
-                   <div class="similarity-reason">${this.getSimilarityReason(s)}</div>
+                   <div class="similarity-reason">${this.getSimilarityReason(
+                     s
+                   )}</div>
                  </div>
                </div>`;
     }
@@ -810,8 +862,14 @@ const UI = {
   getSimilarityReason(similarity) {
     if (!similarity) return "relevant characteristics";
     try {
-      if (similarity.breakdown && similarity.breakdown.semantic && similarity.breakdown.semantic.coOccurrence && similarity.breakdown.semantic.coOccurrence.score > 0.5) {
-        const patterns = similarity.breakdown.semantic.coOccurrence.matchingPatterns;
+      if (
+        similarity.breakdown &&
+        similarity.breakdown.semantic &&
+        similarity.breakdown.semantic.coOccurrence &&
+        similarity.breakdown.semantic.coOccurrence.score > 0.5
+      ) {
+        const patterns =
+          similarity.breakdown.semantic.coOccurrence.matchingPatterns;
         if (patterns && patterns.length > 0) {
           return `Matched tag combinations around "${patterns[0].pattern}"`;
         }
