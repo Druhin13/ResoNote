@@ -1,68 +1,63 @@
-const express = require('express');
+/**
+ * @file Playlist routes defining endpoints for generating, searching, and analyzing playlists.
+ */
+
+const express = require("express");
 const router = express.Router();
-const playlistController = require('../controllers/playlist');
+const playlistController = require("../controllers/playlist");
 
 /**
- * @route   POST /api/playlists/generate
- * @desc    Generate a playlist based on seed tracks
- * @access  Public
+ * POST /api/playlists/generate
+ * Generate a playlist based on provided seed tracks and options.
  */
-router.post('/generate', playlistController.generatePlaylist);
+router.post("/generate", playlistController.generatePlaylist);
 
 /**
- * @route   GET /api/playlists/tracks/:trackId
- * @desc    Get similar tracks to a specific track
- * @access  Public
+ * GET /api/playlists/tracks/:trackId
+ * Retrieve tracks similar to the given track.
  */
-router.get('/tracks/:trackId', playlistController.getSimilarTracks);
+router.get("/tracks/:trackId", playlistController.getSimilarTracks);
 
 /**
- * @route   GET /api/playlists/tracks/:trackId/details
- * @desc    Get detailed information about a track
- * @access  Public
+ * GET /api/playlists/tracks/:trackId/details
+ * Retrieve detailed information about a specific track.
  */
-router.get('/tracks/:trackId/details', playlistController.getTrackDetails);
+router.get("/tracks/:trackId/details", playlistController.getTrackDetails);
 
 /**
- * @route   GET /api/playlists/similarity
- * @desc    Get similarity details between two tracks
- * @access  Public
+ * GET /api/playlists/similarity
+ * Retrieve similarity details between two tracks.
  */
-router.get('/similarity', playlistController.getSimilarityDetails);
+router.get("/similarity", playlistController.getSimilarityDetails);
 
 /**
- * @route   GET /api/playlists/search
- * @desc    Search for tracks by name, artist, or lyrics
- * @access  Public
+ * GET /api/playlists/search
+ * Search for tracks by name, artist, or lyrics.
  */
-router.get('/search', playlistController.searchTracks);
+router.get("/search", playlistController.searchTracks);
 
 /**
- * @route   GET /api/playlists/random-track
- * @desc    Get a random track from the database
- * @access  Public
+ * GET /api/playlists/random-track
+ * Retrieve a random track from the dataset.
  */
-router.get('/random-track', playlistController.getRandomTrack);
+router.get("/random-track", playlistController.getRandomTrack);
 
 /**
- * @route   GET /api/playlists/facets
- * @desc    Get all available facets
- * @access  Public
+ * GET /api/playlists/facets
+ * Retrieve all available semantic facets.
  */
-router.get('/facets', playlistController.getFacets);
+router.get("/facets", playlistController.getFacets);
 
 /**
- * @route   GET /api/playlists/tags
- * @desc    Get all tags across all facets or for a specific facet
- * @access  Public
+ * GET /api/playlists/tags
+ * Retrieve tags across all facets or for a specific facet.
  */
-router.get('/tags', playlistController.getTags);
+router.get("/tags", playlistController.getTags);
 
 /**
- * @route   GET /api/playlists/facets/:facetName/tags
- * @desc    Get all tags for a specific facet
- * @access  Public
+ * GET /api/playlists/facets/:facetName/tags
+ * Retrieve tags for a specific facet.
  */
-router.get('/facets/:facetName/tags', playlistController.getTagsByFacet);
+router.get("/facets/:facetName/tags", playlistController.getTagsByFacet);
 
 module.exports = router;

@@ -1,29 +1,69 @@
 /**
  * UI manipulation functions for ResoNote
  *
- * Adjustments in this version:
- * - Show 'Clear' (clear-results) button only when a playlist is visible.
- * - Ensure random button reverts to default when selection cleared.
- * - Fix selected track thumbnail bug by updating _refreshThumbForTrackInUI to use exact matching for track IDs.
- * - Update fuzzy search logic in searchTracks to better handle multi-term queries.
- *   If the API search returns no results for a multi-term query, we then search for each individual term,
- *   combine the results (removing duplicates), and then filter in a fuzzy manner.
- * - Exclude tracks that have already been selected from showing again in the search results.
- * - Use session storage so that once a playlist is generated, if the user reloads the page the last state is restored.
- *   All preference details and options are saved including:
- *      - Seed Tracks
- *      - Similarity Type
- *      - Semantic and Audio Weights
- *      - Playlist Size (min and max)
- *      - Diversity Factor
- *      - Include Seed Tracks checkbox
- *      - Allow Track Variations checkbox
- * - Additionally, on re-loading state, album images are re-fetched so that placeholders are replaced.
- * - Keep slider displays as percentages.
- * - Responsive interactions are controlled via CSS; JS shows/hides elements when appropriate.
+ * Initializes and manages the interactive client UI:
+ * - Search and selection of seed tracks
+ * - Weight sliders and similarity options
+ * - Playlist generation, rendering, export
+ * - Track details modal, thumbnails, and session persistence
+ */
+
+/**
+ * @typedef {Object} UIElements
+ * @property {HTMLInputElement} trackSearchInput
+ * @property {HTMLElement} searchResults
+ * @property {HTMLElement} selectedTracks
+ * @property {HTMLButtonElement} randomTrackBtn
+ * @property {NodeListOf<HTMLInputElement>} similarityTypeRadios
+ * @property {HTMLInputElement} semanticWeightSlider
+ * @property {HTMLElement} semanticWeightValue
+ * @property {HTMLInputElement} audioWeightSlider
+ * @property {HTMLElement} audioWeightValue
+ * @property {HTMLInputElement} minTracksInput
+ * @property {HTMLInputElement} maxTracksInput
+ * @property {HTMLInputElement} diversityFactorSlider
+ * @property {HTMLElement} diversityFactorValue
+ * @property {HTMLInputElement} includeSeedTracksCheckbox
+ * @property {HTMLInputElement} allowTrackVariationsCheckbox
+ * @property {HTMLButtonElement} generatePlaylistBtn
+ * @property {HTMLElement} weightsContainer
+ * @property {HTMLElement} loadingIndicator
+ * @property {HTMLElement} errorMessage
+ * @property {HTMLElement} playlistResults
+ * @property {HTMLElement} playlistName
+ * @property {HTMLElement} trackCount
+ * @property {HTMLElement} avgSimilarity
+ * @property {HTMLElement} trackList
+ * @property {HTMLButtonElement} clearResultsBtn
+ * @property {HTMLButtonElement} exportPlaylistBtn
+ * @property {HTMLElement|null} emptyState
+ * @property {HTMLElement} trackDetailsModal
+ * @property {HTMLElement} modalTrackTitle
+ * @property {HTMLElement} modalLoading
+ * @property {HTMLElement} modalTrackDetails
+ * @property {HTMLButtonElement} modalCloseBtn
+ */
+
+/**
+ * @typedef {Object} UIState
+ * @property {Array<any>} selectedTracks
+ * @property {number|null} searchTimeout
+ * @property {Array<any>} searchResults
+ * @property {any} searchIndex
+ * @property {any} currentPlaylist
+ * @property {string[]} currentSeedTrackIds
+ * @property {"semantic"|"audio"|"combined"} similarityType
+ * @property {number} semanticWeight
+ * @property {number} audioWeight
+ * @property {Record<string, string|null>} imageCache
+ * @property {boolean} randomInProgress
  */
 
 const UI = {
+  /**
+   * Cached DOM elements used across the UI layer.
+   * @type {UIElements}
+   */
   elements: {
     trackSearchInput: document.getElementById("track-search"),
     searchResults: document.getElementById("search-results"),
@@ -65,6 +105,10 @@ const UI = {
     modalCloseBtn: document.querySelector(".modal-close"),
   },
 
+  /**
+   * Mutable UI state backing view rendering and behaviors.
+   * @type {UIState}
+   */
   state: {
     selectedTracks: [],
     searchTimeout: null,
@@ -79,8 +123,14 @@ const UI = {
     randomInProgress: false, // prevent concurrent random requests
   },
 
+  /** Default innerHTML for the Random button (restored after errors/reset). */
   randomButtonDefaultHtml: '<i data-lucide="shuffle"></i> Random',
 
+  /**
+   * Entrypoint to initialize the UI layer.
+   * Sets default visibility, restores session state, binds events,
+   * initializes sliders/tooltips/icons, and renders initial selection.
+   */
   init() {
     // Ensure Clear button hidden initially - only show after a successful playlist generate
     if (this.elements.clearResultsBtn) {
@@ -97,6 +147,9 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Initialize Lucide icons if available; safely ignores runtime errors.
+   */
   initializeIcons() {
     if (window.lucide && typeof window.lucide.createIcons === "function") {
       try {
@@ -107,6 +160,11 @@ const UI = {
     }
   },
 
+  /**
+   * Create native title tooltips from elements marked with data-tooltip.
+   * Ensures UX affordance without introducing a tooltip library dependency.
+   * @private
+   */
   _initTooltips() {
     // Ensure elements with data-tooltip have a title for native tooltip behavior
     const tooltipElements = document.querySelectorAll("[data-tooltip]");
@@ -116,6 +174,11 @@ const UI = {
     });
   },
 
+  /**
+   * Initialize slider display values and internal weights from DOM,
+   * maintaining the invariant semanticWeight + audioWeight = 1.
+   * @private
+   */
   _initSliderDisplays() {
     const semantic = parseFloat(
       this.elements.semanticWeightSlider.value || 0.5
@@ -139,6 +202,10 @@ const UI = {
     )}%`;
   },
 
+  /**
+   * Wire up UI event handlers for search, sliders, options, actions, and modals.
+   * Persists relevant user choices to sessionStorage.
+   */
   setupEventListeners() {
     this.elements.trackSearchInput.addEventListener("input", () => {
       clearTimeout(this.state.searchTimeout);
@@ -314,6 +381,12 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Execute a debounced search and render results.
+   * Applies client-side filtering, deduplication, and a fallback union search.
+   * @param {string} query Free-text search query.
+   * @returns {Promise<void>}
+   */
   async searchTracks(query) {
     if (!query || query.length < 2) return;
     try {
@@ -385,6 +458,10 @@ const UI = {
     }
   },
 
+  /**
+   * Render the autocomplete dropdown list for search results.
+   * @param {Array<any>} results Track result objects.
+   */
   renderSearchResults(results) {
     this.elements.searchResults.innerHTML = "";
     if (!results || results.length === 0) {
@@ -426,6 +503,12 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Add a track to the current selection, prefetch its image, and refresh UI.
+   * No-ops if the track is invalid or already selected.
+   * @param {any} track Track object with at least a track_id.
+   * @returns {Promise<void>|void}
+   */
   async addSelectedTrack(track) {
     if (!track || !track.track_id) return;
     if (this.state.selectedTracks.some((t) => t.track_id === track.track_id))
@@ -447,6 +530,11 @@ const UI = {
     this.saveStateToSession();
   },
 
+  /**
+   * Remove a selected track by ID and update UI and session state.
+   * Restores Random button affordance when selection becomes empty.
+   * @param {string} trackId
+   */
   removeSelectedTrack(trackId) {
     this.state.selectedTracks = this.state.selectedTracks.filter(
       (t) => t.track_id !== trackId
@@ -463,12 +551,20 @@ const UI = {
     }
   },
 
+  /**
+   * Ensure a track has a placeholder image entry in the cache.
+   * @private
+   * @param {string} trackId
+   */
   _setTrackImagePlaceholder(trackId) {
     if (!this.state.imageCache.hasOwnProperty(trackId)) {
       this.state.imageCache[trackId] = null;
     }
   },
 
+  /**
+   * Render the selected track chips/cards and manage Random button state.
+   */
   updateSelectedTracks() {
     this.elements.selectedTracks.innerHTML = "";
 
@@ -547,6 +643,11 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Invoke the backend to generate a playlist from the selected seeds and options.
+   * Validates input, shows loading, handles errors, and renders the result.
+   * @returns {Promise<void>}
+   */
   async generatePlaylist() {
     if (this.state.selectedTracks.length === 0) {
       this.showError("Please select at least one track");
@@ -605,6 +706,10 @@ const UI = {
     }
   },
 
+  /**
+   * Render playlist view, KPIs, and interactive actions for each track.
+   * @param {any} playlist Playlist object with tracks, name, and optional stats.
+   */
   displayPlaylist(playlist) {
     this.elements.loadingIndicator.classList.add("hidden");
     this.elements.errorMessage.classList.add("hidden");
@@ -614,6 +719,7 @@ const UI = {
 
     // Show Clear button when playlist is visible
     if (this.elements.clearResultsBtn) {
+      this.elements.clearResultsBtn.display = "inline-flex";
       this.elements.clearResultsBtn.style.display = "inline-flex";
     }
 
@@ -703,6 +809,12 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Open the details modal for a track and optionally fetch similarity to the first seed.
+   * @param {any} track
+   * @param {string[]} seedTrackIds
+   * @returns {Promise<void>}
+   */
   async showTrackDetails(track, seedTrackIds) {
     this.elements.modalTrackTitle.textContent = `${track.track_name} by ${track.artist_name}`;
     this.elements.modalTrackDetails.innerHTML = "";
@@ -746,6 +858,14 @@ const UI = {
     }
   },
 
+  /**
+   * Render the track details modal content: metadata, tags, features, similarity, and lyrics.
+   * @param {any} track
+   * @param {any|null} similarityDetails
+   * @param {boolean} isSeed
+   * @param {boolean} isVariation
+   * @param {string|undefined} variationOf
+   */
   renderTrackDetails(
     track,
     similarityDetails,
@@ -894,6 +1014,11 @@ const UI = {
     this.elements.modalTrackDetails.innerHTML = html;
   },
 
+  /**
+   * Produce a concise human-readable explanation for a similarity payload.
+   * @param {any} similarity
+   * @returns {string}
+   */
   getSimilarityReason(similarity) {
     if (!similarity) return "relevant characteristics";
     try {
@@ -920,11 +1045,17 @@ const UI = {
     }
   },
 
+  /**
+   * Hide and clear the details modal content.
+   */
   closeTrackDetailsModal() {
     this.elements.trackDetailsModal.classList.add("hidden");
     this.elements.modalTrackDetails.innerHTML = "";
   },
 
+  /**
+   * Show the loading state and hide other panels.
+   */
   showLoading() {
     this.elements.errorMessage.classList.add("hidden");
     this.elements.playlistResults.classList.add("hidden");
@@ -933,6 +1064,10 @@ const UI = {
     this.elements.loadingIndicator.classList.remove("hidden");
   },
 
+  /**
+   * Render a visible error banner with the provided message.
+   * @param {string} message
+   */
   showError(message) {
     this.elements.loadingIndicator.classList.add("hidden");
     this.elements.playlistResults.classList.add("hidden");
@@ -946,6 +1081,10 @@ const UI = {
     this.initializeIcons();
   },
 
+  /**
+   * Reset the visible UI sections and clear current playlist UI.
+   * Keeps selections intact; use Clear button UX to reset view.
+   */
   clearResults() {
     this.elements.loadingIndicator.classList.add("hidden");
     this.elements.errorMessage.classList.add("hidden");
@@ -956,6 +1095,12 @@ const UI = {
     this.state.currentPlaylist = null;
   },
 
+  /**
+   * Update any thumbnails in the selection and playlist that match trackId.
+   * @private
+   * @param {string} trackId
+   * @param {string} imageUrl
+   */
   _refreshThumbForTrackInUI(trackId, imageUrl) {
     // Update selected tracks thumbnails by matching exact track_id
     const selectedItems =
@@ -983,10 +1128,20 @@ const UI = {
     });
   },
 
+  /**
+   * Return a small inline SVG data URL to act as a neutral image placeholder.
+   * @private
+   * @returns {string}
+   */
   _placeholderDataUrl() {
     return 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><rect width="100%" height="100%" fill="%2312181a"/><text x="50%" y="50%" alignment-baseline="middle" text-anchor="middle" font-size="10" fill="%238a8f98" font-family="Inter, sans-serif">No Image</text></svg>';
   },
 
+  /**
+   * Safely escape untrusted text for HTML insertion.
+   * @param {any} text
+   * @returns {string}
+   */
   escapeHtml(text) {
     if (typeof text === "undefined" || text === null) return "";
     const div = document.createElement("div");
@@ -994,6 +1149,10 @@ const UI = {
     return div.innerHTML;
   },
 
+  /**
+   * Export the current playlist to CSV and trigger a download.
+   * @returns {void}
+   */
   exportPlaylistCsv() {
     const playlist = this.state.currentPlaylist;
     if (
@@ -1051,7 +1210,10 @@ const UI = {
     }, 5000);
   },
 
-  // Save the complete state to sessionStorage
+  /**
+   * Persist relevant UI state into sessionStorage.
+   * Saves selection, playlist, similarity choices, and control values.
+   */
   saveStateToSession() {
     const stateToSave = {
       selectedTracks: this.state.selectedTracks,
@@ -1068,7 +1230,10 @@ const UI = {
     sessionStorage.setItem("ResoNoteState", JSON.stringify(stateToSave));
   },
 
-  // Load state from sessionStorage and update the UI accordingly
+  /**
+   * Restore UI state from sessionStorage, re-rendering views and rehydrating controls.
+   * Also attempts to restore thumbnails by refetching image URLs.
+   */
   loadStateFromSession() {
     const savedState = sessionStorage.getItem("ResoNoteState");
     if (savedState) {

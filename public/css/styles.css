@@ -1,3 +1,9 @@
+/* =========================================
+   Design tokens and global variables
+   -----------------------------------------
+   Uses HSL/HEX for theme-able palettes and size
+   tokens for consistent iconography.
+   ========================================= */
 :root {
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
@@ -20,12 +26,12 @@
   --ring: 240 5.9% 10%;
   --radius: 0.5rem;
 
-  /* Icon size tokens */
+  /* Icon size tokens for consistent SVG scaling */
   --icon-size-sm: 12px;
-  --icon-size-md: 14px; /* default medium size (a tad smaller than before) */
+  --icon-size-md: 14px;
   --icon-size-lg: 18px;
 
-  /* Dark mode overrides */
+  /* Dark theme defaults; color-scheme informs UA widgets */
   color-scheme: dark;
   --background: #131313;
   --foreground: 0 0% 98%;
@@ -47,19 +53,24 @@
   --input: 240 3.7% 15.9%;
   --ring: 240 4.9% 83.9%;
 
-  /* Custom semantic colors */
+  /* Semantic feedback colors (success/warn/info) */
   --success: 142 76% 36%;
   --warning: 38 92% 50%;
   --info: 221 83% 53%;
 
-  /* Transitions */
+  /* Easing tokens for consistent motion */
   --transition-all: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-colors: color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
     background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
     border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Global lucide SVG sizing rules */
+/* =========================================
+   Icon sizing
+   -----------------------------------------
+   Normalize Lucide SVGs and provide utility
+   classes for size variants.
+   ========================================= */
 svg[data-lucide] {
   width: var(--icon-size-md);
   height: var(--icon-size-md);
@@ -67,7 +78,7 @@ svg[data-lucide] {
   vertical-align: middle;
 }
 
-/* Helper classes to force icon sizes */
+/* Size utilities: enforce specific icon scales */
 .icon-sm[data-lucide],
 .icon-sm svg[data-lucide],
 .icon-sm i[data-lucide] {
@@ -89,7 +100,7 @@ svg[data-lucide] {
   height: var(--icon-size-lg) !important;
 }
 
-/* Specific overrides for commonly used icons */
+/* Contextual overrides for common placements */
 .search-icon[data-lucide],
 .search-icon svg {
   width: var(--icon-size-sm);
@@ -126,7 +137,12 @@ svg[data-lucide] {
   height: var(--icon-size-sm);
 }
 
-/* Reset and base styles */
+/* =========================================
+   Reset and base typography
+   -----------------------------------------
+   Minimal reset and rendering tuning for
+   crisp typography and predictable box-model.
+   ========================================= */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -146,7 +162,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Layout */
+/* =========================================
+   App layout scaffold
+   -----------------------------------------
+   Two-pane application with sticky header.
+   ========================================= */
 .app-container {
   height: 100dvh;
   display: flex;
@@ -204,7 +224,12 @@ body {
   overflow: hidden;
 }
 
-/* Left Panel */
+/* =========================================
+   Left panel (controls)
+   -----------------------------------------
+   Fixed-width control pane with its own
+   scroll context for large forms.
+   ========================================= */
 .left-panel {
   width: 400px;
   flex-shrink: 0;
@@ -234,7 +259,11 @@ body {
   border-radius: 3px;
 }
 
-/* Right Panel */
+/* =========================================
+   Right panel (results)
+   -----------------------------------------
+   Flexible results area with its own header.
+   ========================================= */
 .right-panel {
   flex: 1;
   display: flex;
@@ -272,7 +301,7 @@ body {
   gap: 0.5rem;
 }
 
-/* Hide Clear button by default; it will be displayed when a playlist is shown */
+/* Clear button is shown contextually by JS */
 #clear-results {
   display: none;
 }
@@ -283,7 +312,11 @@ body {
   position: relative;
 }
 
-/* Section styling */
+/* =========================================
+   Section + form primitives
+   -----------------------------------------
+   Spacing, headings, and common input groups.
+   ========================================= */
 .section {
   padding: 1.5rem;
 }
@@ -313,7 +346,7 @@ body {
   gap: 1.5rem;
 }
 
-/* Form components */
+/* Form grouping and labels */
 .form-group {
   display: flex;
   flex-direction: column;
@@ -327,7 +360,12 @@ body {
   color: hsl(var(--foreground));
 }
 
-/* Search input */
+/* =========================================
+   Search input + results dropdown
+   -----------------------------------------
+   Accessible input with icon and absolute
+   positioned results list.
+   ========================================= */
 .seed-tracks-container {
   display: flex;
   flex-direction: column;
@@ -413,7 +451,12 @@ body {
   margin-top: 0.25rem;
 }
 
-/* Selected tracks */
+/* =========================================
+   Selected tracks list
+   -----------------------------------------
+   Chip-like rows with thumbnail, metadata,
+   and remove action.
+   ========================================= */
 .selected-tracks {
   min-height: 80px;
   padding: 0.75rem;
@@ -493,7 +536,7 @@ body {
   margin-top: 0.125rem;
 }
 
-/* Checkbox improvements */
+/* Remove button: unobtrusive until hover */
 .remove-track {
   width: 32px;
   height: 32px;
@@ -518,6 +561,7 @@ body {
   height: 16px;
 }
 
+/* Checkbox icon reveal; driven by sibling selector */
 .checkbox-indicator svg {
   width: 12px;
   height: 12px;
@@ -541,7 +585,12 @@ body {
   margin-top: 0.25rem;
 }
 
-/* Radio grid */
+/* =========================================
+   Similarity type radio cards
+   -----------------------------------------
+   Card-styled radios with custom focus/checked
+   visuals using adjacent sibling selectors.
+   ========================================= */
 .radio-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -596,7 +645,12 @@ body {
   color: hsl(var(--primary));
 }
 
-/* Weight controls */
+/* =========================================
+   Weight controls + sliders
+   -----------------------------------------
+   Two coupled range inputs that mirror each
+   other (logic handled in JS).
+   ========================================= */
 .weight-controls {
   display: flex;
   flex-direction: column;
@@ -631,7 +685,7 @@ body {
   text-align: center;
 }
 
-/* Sliders */
+/* Slider track/thumb styling (WebKit + Gecko) */
 .slider-wrapper {
   position: relative;
   width: 100%;
@@ -641,6 +695,7 @@ body {
 }
 
 .slider {
+  appearance: none;
   -webkit-appearance: none;
   width: 100%;
   height: 6px;
@@ -683,6 +738,7 @@ body {
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.2);
 }
 
+/* Slider labels and helper text */
 .slider-label {
   display: flex;
   justify-content: space-between;
@@ -727,7 +783,12 @@ body {
   height: 14px;
 }
 
-/* Number inputs */
+/* =========================================
+   Number inputs (grid pairing)
+   -----------------------------------------
+   Paired numeric fields with consistent
+   spacing and focus-ring.
+   ========================================= */
 .number-inputs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -765,7 +826,11 @@ body {
   box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
 }
 
-/* Checkboxes */
+/* =========================================
+   Checkbox list
+   -----------------------------------------
+   Clickable rows with custom indicators.
+   ========================================= */
 .checkbox-list {
   display: flex;
   flex-direction: column;
@@ -820,7 +885,12 @@ body {
   margin-top: 0.25rem;
 }
 
-/* Buttons */
+/* =========================================
+   Buttons
+   -----------------------------------------
+   Unified button styles with size variants
+   and accessible focus indicators.
+   ========================================= */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -909,7 +979,11 @@ body {
   height: 18px;
 }
 
-/* States */
+/* =========================================
+   UI states: loading / empty / error
+   -----------------------------------------
+   Centered stacks with icon + message.
+   ========================================= */
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -980,7 +1054,12 @@ body {
   height: 32px;
 }
 
-/* Playlist results */
+/* =========================================
+   Playlist results container
+   -----------------------------------------
+   Header with stats + actions and a scrollable
+   track list region.
+   ========================================= */
 .playlist-results {
   height: 100%;
   display: flex;
@@ -1027,7 +1106,13 @@ body {
   gap: 0.5rem;
 }
 
-/* Track list */
+/* =========================================
+   Track list
+   -----------------------------------------
+   Responsive CSS grid layout; column widths
+   balance number, title, artist, similarity,
+   and actions.
+   ========================================= */
 .track-list-container {
   flex: 1;
   overflow: hidden;
@@ -1164,12 +1249,18 @@ body {
   height: 20px;
 }
 
+/* Spotify play button uses brand asset sprite */
 .track-actions .btn-icon.play-btn {
   background: url("../assets/logo/spotify-logo.svg") no-repeat center center;
   background-size: cover;
 }
 
-/* Modal */
+/* =========================================
+   Modal
+   -----------------------------------------
+   Layered dialog with overlay blur and a
+   constrained content card.
+   ========================================= */
 .modal {
   position: fixed;
   inset: 0;
@@ -1245,7 +1336,12 @@ body {
   padding: 1.5rem;
 }
 
-/* Modal inner elements (Track Details) */
+/* =========================================
+   Track details (modal content)
+   -----------------------------------------
+   Typographic hierarchy, tags, features, and
+   auxiliary sections.
+   ========================================= */
 .track-details-section {
   padding-bottom: 2rem;
   border-bottom: 1px solid hsl(var(--border));
@@ -1303,7 +1399,7 @@ body {
   color: hsl(var(--foreground));
 }
 
-/* Tag styles with new spacing and status indicators */
+/* Tag chips with status color coding */
 .tags-list {
   display: flex;
   flex-wrap: wrap;
@@ -1341,7 +1437,7 @@ body {
   color: hsl(var(--primary));
 }
 
-/* Audio features grid */
+/* Audio features grid with responsive columns */
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -1372,7 +1468,7 @@ body {
   margin-top: 1.5rem;
 }
 
-/* Variation badge */
+/* Variation badge for alternate versions */
 .variation-badge {
   background-color: #943843;
   color: hsl(var(--secondary-foreground));
@@ -1382,7 +1478,7 @@ body {
   margin-left: 0.5rem;
 }
 
-/* Lyrics section */
+/* Lyrics block with preserved line breaks */
 .lyrics-section {
   white-space: pre-line;
   font-size: 0.875rem;
@@ -1393,7 +1489,7 @@ body {
   margin-top: 0.75rem;
 }
 
-/* Similarity reason */
+/* Short textual explanation styling */
 .similarity-reason {
   font-size: 0.875rem;
   color: hsl(var(--primary));
@@ -1401,7 +1497,11 @@ body {
   margin-top: 0.75rem;
 }
 
-/* Animations */
+/* =========================================
+   Motion
+   -----------------------------------------
+   Reusable spin animation; paired utility.
+   ========================================= */
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -1415,12 +1515,21 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* Utility classes */
+/* =========================================
+   Utilities
+   -----------------------------------------
+   Single-purpose helpers used in JS toggles.
+   ========================================= */
 .hidden {
   display: none !important;
 }
 
-/* Responsive design */
+/* =========================================
+   Responsive adjustments
+   -----------------------------------------
+   Breakpoints reduce panel width and simplify
+   the track list grid on small screens.
+   ========================================= */
 @media (max-width: 1024px) {
   .left-panel {
     width: 360px;
@@ -1456,6 +1565,7 @@ body {
     grid-template-columns: 32px 1fr 60px 60px;
   }
 
+  /* Hide artist and action columns on small screens */
   .track-header-cell:nth-child(3),
   .track-item > :nth-child(3) {
     display: none;
@@ -1467,7 +1577,11 @@ body {
   }
 }
 
-/* Small phones */
+/* =========================================
+   Mobile devices
+   -----------------------------------------
+   Tighten spacing and reduce icon sizes.
+   ========================================= */
 @media (max-width: 420px) {
   .track-list-header,
   .track-item {
@@ -1475,8 +1589,8 @@ body {
   }
 
   .track-title-cell .track-thumb {
-    width: 32px;
-    height: 32px;
+  width: 32px;
+  height: 32px;
   }
 
   .logo h1 {

@@ -1,6 +1,23 @@
+/**
+ * @file Controllers for analytical endpoints:
+ * - Per-track analysis (tags, normalized features, embeddings)
+ * - Pairwise similarity matrix for a set of tracks
+ */
+
 const { getTrackById, getAllTracks } = require('../data/dataLoader');
 const similarityService = require('../services/similarityService');
 
+/**
+ * Generate analysis for a single track:
+ * - Tag distribution with per-tag confidence (if available)
+ * - Normalized audio features (tempo, loudness, etc.)
+ * - 2D semantic embedding proxy (valence, energy)
+ * - Optional sentiment when present
+ *
+ * @param {import('express').Request} req Express request (expects req.params.trackId)
+ * @param {import('express').Response} res JSON response with { success, analysis }
+ * @returns {void}
+ */
 const trackAnalysis = (req, res) => {
   const { trackId } = req.params;
   const track = getTrackById(trackId);
@@ -54,6 +71,20 @@ const trackAnalysis = (req, res) => {
   });
 };
 
+/**
+ * Compute an N×N similarity matrix for provided track IDs.
+ * Diagonal entries are 1; off-diagonals are calculated via similarityService.
+ *
+ * @param {import('express').Request} req Express request with body:
+ * {
+ *   trackIds: string[],
+ *   similarityType?: 'semantic'|'audio'|'combined',
+ *   semanticWeight?: number,
+ *   audioWeight?: number
+ * }
+ * @param {import('express').Response} res JSON response with { success, trackIds, similarityMatrix }
+ * @returns {void}
+ */
 const similarityMatrix = (req, res) => {
   const { trackIds = [], similarityType = 'combined', semanticWeight = 0.5, audioWeight = 0.5 } = req.body;
   if (!Array.isArray(trackIds) || trackIds.length < 2) {
